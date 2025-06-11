@@ -320,88 +320,69 @@
                     mediaRecorder.onstop = function() {
                         audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                         const audioUrl = URL.createObjectURL(audioBlob);
-                        
-                        // Set up audio player
-                        audioPlayer.src = audioUrl;
-                        downloadBtn.disabled = false;
-                        playBtn.disabled = false;
-                        
-                        // Calculate audio duration
-                        audioPlayer.onloadedmetadata = function() {
-                            const duration = audioPlayer.duration;
-                            const minutes = Math.floor(duration / 60);
-                            const seconds = Math.floor(duration % 60);
-                            audioLength.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-                        };
-                        
-                        // Update status
-                        statusIndicator.innerHTML = `
-                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
-                            <span class="text-sm text-gray-500">Ready</span>
-                        `;
-                    };
-                    
-                    // Start recording
-                    mediaRecorder.start();
-                    
-                    // Speak the utterance
-                    speechSynthesis.speak(utterance);
-                    
-                    // Stop recording when speech ends
-                    utterance.onend = function() {
-                        setTimeout(() => {
-                            mediaRecorder.stop();
-                            convertBtn.disabled = false;
-                        }, 500);
-                    };
-                    
-                } catch (error) {
-                    console.error('Error during TTS:', error);
-                    statusIndicator.innerHTML = `
-                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
-                        <span class="text-sm text-gray-500">Error: ${error.message}</span>
-                    `;
-                    convertBtn.disabled = false;
-                }
-            });
-            
-            // Play audio
-            playBtn.addEventListener('click', function() {
-                if (audioPlayer.src) {
-                    audioPlayer.play();
-                }
-            });
-            
-            // Download audio
-            downloadBtn.addEventListener('click', function() {
-                if (!audioBlob) return;
-                
-                const a = document.createElement('a');
-                const url = URL.createObjectURL(audioBlob);
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                a.href = url;
-                a.download = `tts-audio-${timestamp}.wav`;
-                document.body.appendChild(a);
-                a.click();
-                
-                // Clean up
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 100);
-            });
-            
-            // Initialize the app
-            loadVoices();
-            
-            // If voices aren't loaded immediately, try again after a short delay
-            if (voices.length === 0) {
-                setTimeout(loadVoices, 1000);
-            }
-            
-            // Telegram Web App ready event
-            tg.ready();
-        });
-    </script>
+                                   // Set up audio player
+                        audioPlayer.src = audioUrl;
+                        audioPlayer.onloadedmetadata = () => {
+                            const duration = audioPlayer.duration;
+                            const minutes = Math.floor(duration / 60);
+                            const seconds = Math.floor(duration % 60).toString().padStart(2, '0');
+                            audioLength.textContent = `${minutes}:${seconds}`;
+                        };
+
+                        downloadBtn.disabled = false;
+                        playBtn.disabled = false;
+
+                        statusIndicator.innerHTML = `
+                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                            <span class="text-sm text-gray-500">Ready</span>
+                        `;
+                    };
+
+                    // Start recording and speaking
+                    mediaRecorder.start();
+                    const source = audioContext.createMediaStreamSource(dest.stream);
+                    source.connect(audioContext.destination);
+                    speechSynthesis.speak(utterance);
+
+                    utterance.onend = () => {
+                        mediaRecorder.stop();
+                        source.disconnect();
+                        audioContext.close();
+                    };
+
+                } catch (err) {
+                    console.error('Error during speech synthesis:', err);
+                    statusIndicator.innerHTML = `
+                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                        <span class="text-sm text-red-500">Error</span>
+                    `;
+                } finally {
+                    convertBtn.disabled = false;
+                }
+            });
+
+            // Play audio
+            playBtn.addEventListener('click', () => {
+                if (audioBlob) {
+                    audioPlayer.play();
+                }
+            });
+
+            // Download audio
+            downloadBtn.addEventListener('click', () => {
+                if (audioBlob) {
+                    const url = URL.createObjectURL(audioBlob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'tts-audio.wav';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+            });
+
+            // Load voices
+            loadVoices();
+        });
+    </script>
 </body>
 </html>
